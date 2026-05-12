@@ -9,6 +9,9 @@
 #include "mesh/mesh-pb-constants.h"
 #include <bluefruit.h>
 #include <utility/bonding.h>
+
+#include "BLEHeartRate.h"
+
 static BLEService meshBleService = BLEService(BLEUuid(MESH_SERVICE_UUID_16));
 static BLECharacteristic fromNum = BLECharacteristic(BLEUuid(FROMNUM_UUID_16));
 static BLECharacteristic fromRadio = BLECharacteristic(BLEUuid(FROMRADIO_UUID_16));
@@ -264,7 +267,14 @@ void NRF52Bluetooth::setup()
     LOG_INFO("Init the Bluefruit nRF52 module");
     Bluefruit.autoConnLed(false);
     Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
-    Bluefruit.begin();
+    
+    bool ok = Bluefruit.begin(1,1);
+    if (ok) {
+        LOG_INFO("Bluefruit nRF52 module modo dual OK");
+    } else {
+        LOG_INFO("Bluefruit nRF52 module modo dual KO");
+    }
+    
     // Clear existing data.
     Bluefruit.Advertising.stop();
     Bluefruit.Advertising.clearData();
@@ -344,6 +354,8 @@ void NRF52Bluetooth::setup()
     LOG_INFO("Set up the advertising payload(s)");
     startAdv();
     LOG_INFO("Advertise");
+
+    setupHeartRateSensor();
 }
 void NRF52Bluetooth::resumeAdvertising()
 {
