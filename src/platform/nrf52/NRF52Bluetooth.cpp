@@ -10,7 +10,9 @@
 #include <bluefruit.h>
 #include <utility/bonding.h>
 
-#include "BLEHeartRate.h"
+#ifdef ENABLE_MONITOR_ASSIST
+#include "monitor-assist/BLEHeartRate.h"
+#endif
 
 static BLEService meshBleService = BLEService(BLEUuid(MESH_SERVICE_UUID_16));
 static BLECharacteristic fromNum = BLECharacteristic(BLEUuid(FROMNUM_UUID_16));
@@ -355,7 +357,9 @@ void NRF52Bluetooth::setup()
     startAdv();
     LOG_INFO("Advertise");
 
-    setupHeartRateSensor();
+    #ifdef ENABLE_MONITOR_ASSIST
+    setupHeartRateSensor(); 
+    #endif
 }
 void NRF52Bluetooth::resumeAdvertising()
 {
