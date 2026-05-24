@@ -31,6 +31,9 @@
 #if !MESHTASTIC_EXCLUDE_GPS
 #include "modules/PositionModule.h"
 #endif
+#ifdef ENABLE_MONITOR_ASSIST
+#include "modules/MonitorAssistModule.h"
+#endif
 #if !MESHTASTIC_EXCLUDE_REMOTEHARDWARE
 #include "modules/RemoteHardwareModule.h"
 #endif
@@ -177,6 +180,9 @@ void setupModules()
 #endif
     // Example: Put your module here
     // new ReplyModule();
+#ifdef ENABLE_MONITOR_ASSIST
+    new MonitorAssistModule();
+#endif
 #if HAS_SCREEN && !MESHTASTIC_EXCLUDE_CANNEDMESSAGES
     if (config.display.displaymode != meshtastic_Config_DisplayConfig_DisplayMode_COLOR) {
         cannedMessageModule = new CannedMessageModule();
@@ -249,6 +255,7 @@ void setupModules()
 #if defined(HAS_HARDWARE_WATCHDOG)
     watchdogThread = new WatchdogThread();
 #endif
+
     // NOTE! This module must be added LAST because it likes to check for replies from other modules and avoid sending extra
     // acks
     routingModule = new RoutingModule();

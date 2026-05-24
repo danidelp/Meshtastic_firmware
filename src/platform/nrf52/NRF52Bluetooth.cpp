@@ -11,7 +11,7 @@
 #include <utility/bonding.h>
 
 #ifdef ENABLE_MONITOR_ASSIST
-#include "monitor-assist/BLEHeartRate.h"
+#include "BLEHeartRate.h"
 #endif
 
 static BLEService meshBleService = BLEService(BLEUuid(MESH_SERVICE_UUID_16));
@@ -270,12 +270,16 @@ void NRF52Bluetooth::setup()
     Bluefruit.autoConnLed(false);
     Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
     
+    #ifdef ENABLE_MONITOR_ASSIST
     bool ok = Bluefruit.begin(1,1);
     if (ok) {
         LOG_INFO("Bluefruit nRF52 module modo dual OK");
     } else {
         LOG_INFO("Bluefruit nRF52 module modo dual KO");
     }
+    #else
+    Bluefruit.begin();
+    #endif
     
     // Clear existing data.
     Bluefruit.Advertising.stop();
