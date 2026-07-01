@@ -32,7 +32,7 @@
 #include "modules/PositionModule.h"
 #endif
 #ifdef ENABLE_MONITOR_ASSIST
-#include "modules/MonitorAssistModule.h"
+#include "modules/MonitorAssist/MonitorAssistModule.h"
 #endif
 #if !MESHTASTIC_EXCLUDE_REMOTEHARDWARE
 #include "modules/RemoteHardwareModule.h"
