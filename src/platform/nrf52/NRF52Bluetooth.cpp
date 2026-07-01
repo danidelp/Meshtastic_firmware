@@ -10,10 +10,6 @@
 #include <bluefruit.h>
 #include <utility/bonding.h>
 
-#ifdef ENABLE_MONITOR_ASSIST
-#include "BLEHeartRate.h"
-#endif
-
 static BLEService meshBleService = BLEService(BLEUuid(MESH_SERVICE_UUID_16));
 static BLECharacteristic fromNum = BLECharacteristic(BLEUuid(FROMNUM_UUID_16));
 static BLECharacteristic fromRadio = BLECharacteristic(BLEUuid(FROMRADIO_UUID_16));
@@ -273,9 +269,9 @@ void NRF52Bluetooth::setup()
     #ifdef ENABLE_MONITOR_ASSIST
     bool ok = Bluefruit.begin(1,1);
     if (ok) {
-        LOG_INFO("Bluefruit nRF52 module modo dual OK");
+        LOG_INFO("Bluefruit nRF52 dual mode OK");
     } else {
-        LOG_INFO("Bluefruit nRF52 module modo dual KO");
+        LOG_INFO("Bluefruit nRF52 dual mode KO");
     }
     #else
     Bluefruit.begin();
@@ -360,10 +356,6 @@ void NRF52Bluetooth::setup()
     LOG_INFO("Set up the advertising payload(s)");
     startAdv();
     LOG_INFO("Advertise");
-
-    #ifdef ENABLE_MONITOR_ASSIST
-    setupHeartRateSensor(); 
-    #endif
 }
 void NRF52Bluetooth::resumeAdvertising()
 {

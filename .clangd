@@ -1,0 +1,7 @@
+CompileFlags:
+  Add: 
+    - -Wno-enum-constexpr-conversion
+    - -Wno-constexpr-not-const
+    - -Wno-invalid-constexpr
+    - -Wno-unused-value
+    - -Wno-missing-field-initializers
