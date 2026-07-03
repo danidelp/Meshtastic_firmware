@@ -1,10 +1,6 @@
 #include "QMA6100PSensor.h"
 #include <math.h>
 
-#ifdef ENABLE_MONITOR_ASSIST
-
-#endif
-
 #if !defined(ARCH_STM32WL) && !MESHTASTIC_EXCLUDE_I2C && defined(HAS_QMA6100P)
 
 // Flag when an interrupt has been detected
@@ -46,11 +42,12 @@ void QMA6100PSetInterrupt()
 
 #ifdef ENABLE_MONITOR_ASSIST
 void QMA6100PSensor::resetFallState() {
-    LOG_INFO("QMA6100P: Resetting hardware state (Abort/Init).");
+    LOG_INFO("QMA6100P: Resetting state...");
     fall_detected = false;
     last_impact_time = 0;
     first_impact_time = 0;
     
+    // Reset hardware registers to default values
     QMA6100PSingleton *sensor = QMA6100PSingleton::GetInstance();
     if (sensor) {
         sensor->writeRegisterByte(0x2E, UMBRAL_CAIDA_GRAVE);

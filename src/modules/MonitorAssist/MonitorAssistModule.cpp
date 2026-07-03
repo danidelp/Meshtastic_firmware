@@ -1,5 +1,6 @@
 #include "MonitorAssistModule.h"
 #include "DebugConfiguration.h"
+#include "main.h"
 
 #ifdef ENABLE_MONITOR_ASSIST
 
@@ -29,9 +30,8 @@
 MonitorAssistModule* g_monitorAssistInstance = nullptr;
 
 // Funciones on_enter, on_state y on_exit para cada estado
-
 void MonitorAssistModule::initEnter() {
-  LOG_INFO("FSM [initEnter] Initializing MonitorAssist Module...");
+  
   // Inicializacion del sensor de pulso
   if (hrBandSensor) {
       hrBandSensor->init();
@@ -43,15 +43,14 @@ void MonitorAssistModule::initEnter() {
 }
 void MonitorAssistModule::initState(){
 
-  static bool first_time_log = true;
-  if(first_time_log){
-      LOG_INFO("FSM [initState] Waiting for HR Band Sensor...");
-      first_time_log = false;
-  }
-
   // Esperar a que llegue el evento de banda de HR conectada, 
   // es la unica transicion valida para ir a NormalState.
   // El evento se lanza desde el callback del observer onHRBandConnection()
+
+  if(!g_monitorAssistInstance->hrBandConnected){
+    LOG_INFO("FSM [initState] Waiting for HR Band Sensor...");
+  }
+
 }
 void MonitorAssistModule::initExit(){
   LOG_INFO("FSM [initExit] Exiting INIT state");
@@ -89,11 +88,16 @@ void MonitorAssistModule::normalState(){
       uint32_t now = millis();
       if (now - g_monitorAssistInstance->lastSendTime >= INTERVALO_NORMAL_MS && hrBandSensor) {
           uint8_t macroBpm = hrBandSensor->getAccumHR();
-          uint8_t flags = 0;
-          if (!g_monitorAssistInstance->hrBandConnected) flags |= FLAG_HR_DISCONNECTED;
-          LOG_INFO("FSM [normalState] Sending Assist Telemetry. Heart Rate: %d BPM", macroBpm);
-          g_monitorAssistInstance->sendAssistTelemetry(macroBpm, flags);
-          g_monitorAssistInstance->lastSendTime = now;
+          
+          // Evitar mandar el pulso al comienzo del estado normal si aun no se ha estabilizado (0 BPM)
+          // a menos que no estemos conectados a la banda (en cuyo caso sí notificamos la falta de conexion con 0)
+          if (macroBpm > 0 || !g_monitorAssistInstance->hrBandConnected) {
+              uint8_t flags = 0;
+              if (!g_monitorAssistInstance->hrBandConnected) flags |= FLAG_HR_DISCONNECTED;
+              LOG_INFO("FSM [normalState] Sending Assist Telemetry. Heart Rate: %d BPM", macroBpm);
+              g_monitorAssistInstance->sendAssistTelemetry(macroBpm, flags);
+              g_monitorAssistInstance->lastSendTime = now;
+          }
       }
   }
 }
@@ -222,7 +226,7 @@ MonitorAssistModule::MonitorAssistModule()
   hrBandConnectionObserver = new CallbackObserver<MonitorAssistModule, const void *>(
       this, &MonitorAssistModule::onHRBandConnection);
   hrBandConnectionObserver->observe(&hrBandSensor->bandConnectionObservable);
-  LOG_INFO("[MonitorAssist] Observer de conexión de banda configurado.");
+  LOG_INFO("[MonitorAssist] Observer de conexion de banda configurado.");
 
   // Suscribirnos como observadores del sensor de movimiento para que nos notifique ante las caidas
   QMA6100PSingleton *imu = QMA6100PSingleton::GetInstance();
@@ -245,16 +249,34 @@ MonitorAssistModule::MonitorAssistModule()
 
 int32_t MonitorAssistModule::runOnce() {
 
-  // El entorno de meshtastic aun no está configurado
+  // El entorno de meshtastic aun no está configurado, esperamos 5 segundos
   if (!service || myNodeInfo.my_node_num == 0) {
     return 5000;
   }
+
+#ifdef ARCH_NRF52
+  // Asegurarnos de que PowerFSM ha encendido el hardware Bluetooth antes de continuar, evaluar en 2 segundos
+  if (nrf52Bluetooth == nullptr) {
+    return 2000;
+  }
+#endif
 
   // Region no configurada aun. Esperar a que esté configurada consultando cada 10 segundos
   // Sin esto, no inicializamos el modulo de asistencia.
   // Dependiendo del modelo del nodo, se deberá configurar la región desde la app movil
   if (config.lora.region == meshtastic_Config_LoRaConfig_RegionCode_UNSET) {
-        return 10000; 
+    return 10000; 
+  }
+
+  // No continuar si hay un reinicio del sistema pendiente
+  // Esto evita problemas con disableBluetooth() ejecutandose desde el AdminModule
+  // Calcular el tiempo hasta el reinicio e irnos a dormir
+  if (rebootAtMsec != 0) {
+    uint32_t now = millis();
+    if (rebootAtMsec > now) {
+      return rebootAtMsec - now; // Dormir exactamente hasta el momento del reinicio
+    }
+    return 10000;
   }
 
   monitorAssistFSM.run_machine();
@@ -324,11 +346,11 @@ int MonitorAssistModule::onHRBandConnection(const void *arg) {
   bool connected = (bool)arg;
   if (connected) {
       hrBandConnected = true;
-      LOG_INFO("[MonitorAssist] HR Band connected via BLE");
+      LOG_INFO("[MonitorAssist] HR Band connected...");
       monitorAssistFSM.trigger(EVENT_HRBAND_READY);
   } else {
       hrBandConnected = false;
-      LOG_INFO("[MonitorAssist] HR Band disconnected from BLE");
+      LOG_INFO("[MonitorAssist] HR Band disconnected...");
       monitorAssistFSM.trigger(EVENT_HRBAND_DISCONNECT);
   }
   return 0;

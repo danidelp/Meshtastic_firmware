@@ -30,6 +30,7 @@ private:
     uint8_t battery_level = 100;
     bool bleInit = false;
     bool band_connected = false;
+    bool shutdown_requested = false;
     bool lastRiskState = false;
 
     // FreeRTOS Queue for BPM samples
@@ -45,6 +46,8 @@ public:
     HRBandSensor();
     
     bool init();               
+    void shutdown();
+    bool isShutdown() const { return shutdown_requested; }
     void setConnected(bool connected) { band_connected = connected; }
     bool isConnected() const { return band_connected; }
     bool isGoodSignal() const;  

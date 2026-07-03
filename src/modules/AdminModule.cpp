@@ -904,7 +904,7 @@ void AdminModule::handleSetConfig(const meshtastic_Config &c)
         break;
     }
     if (requiresReboot && !hasOpenEditTransaction) {
-        disableBluetooth();
+        // disableBluetooth(); // Comentado para evitar que el movil pierda la conexion antes del ACK
     }
 
     saveChanges(changes, requiresReboot);
@@ -917,7 +917,7 @@ bool AdminModule::handleSetModuleConfig(const meshtastic_ModuleConfig &c)
     // Otherwise, disable Bluetooth to prevent the phone from interfering with the config
     if (!hasOpenEditTransaction && !IS_ONE_OF(c.which_payload_variant, meshtastic_ModuleConfig_mqtt_tag,
                                               meshtastic_ModuleConfig_serial_tag, meshtastic_ModuleConfig_statusmessage_tag)) {
-        disableBluetooth();
+        // disableBluetooth(); // Comentado para evitar que el movil pierda la conexion antes del ACK
     }
 
     switch (c.which_payload_variant) {

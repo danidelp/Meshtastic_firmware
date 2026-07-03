@@ -4,6 +4,11 @@
 #include "HardwareRNG.h"
 #include "PowerFSM.h"
 #include "configuration.h"
+
+#ifdef ENABLE_MONITOR_ASSIST
+#include "modules/MonitorAssist/BLESensor/HRBandSensor.h"
+#endif
+
 #include "main.h"
 #include "mesh/PhoneAPI.h"
 #include "mesh/mesh-pb-constants.h"
@@ -233,6 +238,13 @@ void NRF52Bluetooth::shutdown()
     // Shutdown bluetooth for minimum power draw
     LOG_INFO("Disable NRF52 bluetooth");
     Bluefruit.Security.setPairPasskeyCallback(NRF52Bluetooth::onUnwantedPairing); // Actively refuse (during factory reset)
+
+#ifdef ENABLE_MONITOR_ASSIST
+    if (hrBandSensor) {
+        hrBandSensor->shutdown();
+    }
+#endif
+
     disconnect();
     Bluefruit.Advertising.stop();
 }
@@ -459,9 +471,16 @@ void NRF52Bluetooth::disconnect()
         for (uint8_t i = 0; i < connection_num; i++)
             Bluefruit.disconnect(i);
 
+#ifdef ENABLE_MONITOR_ASSIST
+        // Wait for disconnection (with a timeout to prevent infinite hangs in Dual Role mode)
+        uint32_t start_time = millis();
+        while (Bluefruit.connected() && (millis() - start_time < 2000))
+            yield();
+#else
         // Wait for disconnection
         while (Bluefruit.connected())
             yield();
+#endif
 
         LOG_INFO("Ended BLE connection");
     }

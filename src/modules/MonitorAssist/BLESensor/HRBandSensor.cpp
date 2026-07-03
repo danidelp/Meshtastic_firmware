@@ -142,18 +142,18 @@ static void scan_callback(ble_gap_evt_adv_report_t* report) {
 
     if (Bluefruit.Scanner.checkReportForService(report, hrService)) {
         
-        uint8_t buffer[32];
-        memset(buffer, 0, sizeof(buffer));
-        
+    uint8_t buffer[32];
+    memset(buffer, 0, sizeof(buffer));
+    
         // Filtrar por nombre de la banda de HR y solo conectarnos a la nuestra configurada
         if (Bluefruit.Scanner.parseReportByType(report, BLE_GAP_AD_TYPE_COMPLETE_LOCAL_NAME, buffer, sizeof(buffer))) {
-            
-            if (strstr((char*)buffer, HRBAND_NAME) != NULL) {
-                LOG_INFO("[HRBandSensor] Connecting to band %s...", HRBAND_NAME);
-                Bluefruit.Central.connect(report);
-                return;
-            }
+
+        if (strstr((char*)buffer, HRBAND_NAME) != NULL) {
+            LOG_INFO("[HRBandSensor] Connecting to band %s...", HRBAND_NAME);
+            Bluefruit.Central.connect(report);
+            return;
         }
+    }
     }
     
     // Si no es un HR, o no es TU banda, la ignoramos y seguimos buscando sin gastar batería
@@ -189,6 +189,9 @@ static void connect_callback(uint16_t conn_handle) {
     if (hrBandSensor) {
         hrBandSensor->setConnected(true);
 
+        // Detener el escaner para liberar la radio y evitar problemas de concurrencia Dual Role
+        Bluefruit.Scanner.stop();
+
         // Forzamos al hilo a dormir 5 segundos tras la conexión para dar tiempo a que la cola se llene de muestras
         // Al encender la banda, esta envía 0s hasta estabilizarse
         hrBandSensor->setIntervalFromNow(5000);
@@ -201,6 +204,10 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
         hrBandSensor->setConnected(false);
         hrBandSensor->resetBuffers(); 
         hrBandSensor->bandConnectionObservable.notifyObservers((void*)false);
+
+        if (hrBandSensor->isShutdown()) {
+            return;
+        }
     }
     Bluefruit.Scanner.start(0);
 }
@@ -209,11 +216,10 @@ bool HRBandSensor::init() {
 
     resetBuffers();
 
-    LOG_INFO("Init HRBandSensor... %s", bleInit ? "BLE already init" : "BLE init new");
-
     if (bleInit) {
         return true;
     } else {
+        LOG_INFO("Init HRBandSensor...");
         bleInit = true;
         hrService.begin();
         hrMeasurement.setNotifyCallback(hr_notify_callback);
@@ -235,6 +241,12 @@ bool HRBandSensor::init() {
     }
     
     return true;
+}
+
+void HRBandSensor::shutdown() {
+    LOG_INFO("[HRBandSensor] Shutting down BLE Central operations...");
+    shutdown_requested = true;
+    Bluefruit.Scanner.stop();
 }
 
 uint8_t HRBandSensor::getAccumHR() {
