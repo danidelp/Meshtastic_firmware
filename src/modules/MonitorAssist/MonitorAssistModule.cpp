@@ -13,7 +13,12 @@
 
 #include "BLESensor/HRBandSensor.h"
 
+#ifdef HAS_QMA6100P
 #include "motion/QMA6100PSensor.h"
+#endif
+#include "gps/RTC.h"
+#include "buzz/buzz.h"
+
 
 // Definición de Eventos
 #define EVENT_HRBAND_READY 1
@@ -26,20 +31,24 @@
 
 #define TIMEOUT_EMERGENCIA_MS 7200000 // 120 minutos en milisegundos
 
+#define ALERT_CHANNEL_NAME "AssistChann"
+
 // Puntero global al módulo MonitorAssistModule
 MonitorAssistModule* g_monitorAssistInstance = nullptr;
 
 // Funciones on_enter, on_state y on_exit para cada estado
 void MonitorAssistModule::initEnter() {
   
+#ifdef MONITOR_ASSIST_SENDER
   // Inicializacion del sensor de pulso
   if (hrBandSensor) {
-      hrBandSensor->init();
+    hrBandSensor->init();
   }
+#endif
   
-  // Limpiamos cualquier estado "fantasma" que haya podido quedar en la IMU
-  // antes de arrancar todo el sistema
+#ifdef HAS_QMA6100P
   QMA6100PSensor::resetFallState();
+#endif
 }
 void MonitorAssistModule::initState(){
 
@@ -59,13 +68,18 @@ void MonitorAssistModule::initExit(){
 void MonitorAssistModule::normalEnter(){
   LOG_INFO("FSM [normalEnter] Entering NORMAL state");
   
+#ifdef HAS_QMA6100P
   // Siempre que pasamos a estado NORMAL (ya sea desde INIT o volviendo de EMERGENCY), 
   // aseguramos que el hardware del acelerómetro se reinicie y olvide caídas viejas.
   QMA6100PSensor::resetFallState();
+#endif
 
   if (g_monitorAssistInstance) {
       g_monitorAssistInstance->alertaCaida = false;
       g_monitorAssistInstance->alertaPulso = false;
+
+      // Forzar el envio de un paquete nada mas entrar en estado normal
+      g_monitorAssistInstance->lastSendTime = millis() - INTERVALO_ENVIO_NORMAL_MS;
 
       // Si volvemos a NORMAL desde EMERGENCY y la pulsera se había desconectado,
       // el evento de desconexión se ignoró para no abortar la emergencia, saltamos a INIT.
@@ -86,7 +100,7 @@ void MonitorAssistModule::normalState(){
   // Envio en modo normal cada 30 minutos
   if (g_monitorAssistInstance) {
       uint32_t now = millis();
-      if (now - g_monitorAssistInstance->lastSendTime >= INTERVALO_NORMAL_MS && hrBandSensor) {
+      if (now - g_monitorAssistInstance->lastSendTime >= INTERVALO_ENVIO_NORMAL_MS && hrBandSensor) {
           uint8_t macroBpm = hrBandSensor->getAccumHR();
           
           // Evitar mandar el pulso al comienzo del estado normal si aun no se ha estabilizado (0 BPM)
@@ -113,7 +127,7 @@ void MonitorAssistModule::emergencyEnter()
   if (g_monitorAssistInstance) {
       g_monitorAssistInstance->emergenciaStartTimer = millis();
       // Forzar envío inmediato
-      g_monitorAssistInstance->lastSendTime = millis() - MonitorAssistModule::INTERVALO_ALERTA_INMEDIATA_MS;
+      g_monitorAssistInstance->lastSendTime = millis() - MonitorAssistModule::INTERVALO_ENVIO_ALERTA_INMEDIATA_MS;
   }
 }
 
@@ -132,18 +146,21 @@ void MonitorAssistModule::emergencyState()
   // Comprobar cancelación manual al pulsar el botón
   if (g_monitorAssistInstance->buttonAbortEmergency) {
     LOG_INFO("FSM [emergencyState] Button pressed. Canceling emergency.");
-      monitorAssistFSM.trigger(EVENT_BUTTON_STOP_EMERGENCY);
-      QMA6100PSensor::resetFallState();
-      g_monitorAssistInstance->buttonAbortEmergency = false;
-      return;
+    monitorAssistFSM.trigger(EVENT_BUTTON_STOP_EMERGENCY);
+
+#ifdef HAS_QMA6100P
+    QMA6100PSensor::resetFallState();
+#endif
+    g_monitorAssistInstance->buttonAbortEmergency = false;
+    return;
   }
 
 
   // Periodic sending logic in emergency
   uint32_t tiempoEnEmergencia = now - g_monitorAssistInstance->emergenciaStartTimer;
-  uint32_t intervaloActual = (tiempoEnEmergencia < MonitorAssistModule::INTERVALO_ALERTA_SECUNDARIA_MS) 
-                              ? MonitorAssistModule::INTERVALO_ALERTA_INMEDIATA_MS 
-                              : MonitorAssistModule::INTERVALO_ALERTA_SOSTENIDA_MS;
+  uint32_t intervaloActual = (tiempoEnEmergencia < MonitorAssistModule::INTERVALO_ENVIO_ALERTA_SECUNDARIA_MS) 
+                              ? MonitorAssistModule::INTERVALO_ENVIO_ALERTA_INMEDIATA_MS 
+                              : MonitorAssistModule::INTERVALO_ENVIO_ALERTA_SOSTENIDA_MS;
 
   if (now - g_monitorAssistInstance->lastSendTime >= intervaloActual) {
       uint8_t flags = 0;
@@ -210,13 +227,14 @@ MonitorAssistModule::MonitorAssistModule()
   
 
   // Forzamos que el primer envío ocurra rápido al arrancar en modo normal
-  lastSendTime = millis() - INTERVALO_NORMAL_MS;
+  lastSendTime = millis() - INTERVALO_ENVIO_NORMAL_MS;
   alertaCaida = false;
   alertaPulso = false;
 
+#ifdef MONITOR_ASSIST_SENDER
   // Inicializacion del sensor de banda
   if (!hrBandSensor) {
-      hrBandSensor = new HRBandSensor();
+    hrBandSensor = new HRBandSensor();
   }
   hrEmergencyObserver = new CallbackObserver<MonitorAssistModule, const void *>(
       this, &MonitorAssistModule::onHeartRateEmergency);
@@ -227,7 +245,9 @@ MonitorAssistModule::MonitorAssistModule()
       this, &MonitorAssistModule::onHRBandConnection);
   hrBandConnectionObserver->observe(&hrBandSensor->bandConnectionObservable);
   LOG_INFO("[MonitorAssist] Observer de conexion de banda configurado.");
+#endif
 
+#ifdef HAS_QMA6100P
   // Suscribirnos como observadores del sensor de movimiento para que nos notifique ante las caidas
   QMA6100PSingleton *imu = QMA6100PSingleton::GetInstance();
   if (imu) {
@@ -236,6 +256,7 @@ MonitorAssistModule::MonitorAssistModule()
     imuFallObserver->observe(imu);
     LOG_INFO("[MonitorAssist] Observer de caidas configurado.");
   }
+#endif
 
   // Suscribirnos como observadores del InputBroker para gestionar los eventos del boton
   if (inputBroker) {
@@ -288,14 +309,12 @@ int32_t MonitorAssistModule::runOnce() {
       led_estado = !led_estado;
       digitalWrite(PIN_LED1, led_estado ? LED_STATE_ON : !LED_STATE_ON);
 
-      // En estado de alarma, hacer sonar el zumbador como si fuera una sirena
-      #ifdef PIN_BUZZER
+      // En estado de alarma, hacer sonar el zumbador como si fuera una sirena 
       if (led_estado) {
-          tone(PIN_BUZZER, 800, 400); // Tono agudo
+          playBeep();
       } else {
-          tone(PIN_BUZZER, 600, 400); // Tono grave
+          playBoop(); 
       }
-      #endif
       
       return 400;
   } else {
@@ -371,50 +390,37 @@ void MonitorAssistModule::sendAssistTelemetry(uint8_t bpm, uint8_t flags) {
 
   meshtastic_MonitorAssistTelemetry msg =
       meshtastic_MonitorAssistTelemetry_init_default;
+
   msg.heart_rate = bpm;
   msg.assist_flags = flags;
+  msg.timestamp = getValidTime(RTCQuality::RTCQualityDevice);
 
-  if (nodeDB) {
-    auto localNode = nodeDB->getMeshNode(nodeDB->getNodeNum());
-    if (localNode) {
-      msg.lat = localNode->position.latitude_i;
-      msg.lon = localNode->position.longitude_i;
-    } else {
-      msg.lat = 0;
-      msg.lon = 0;
-    }
-  } else {
-    msg.lat = 0;
-    msg.lon = 0;
-  }
+  msg.lat = localPosition.latitude_i;
+  msg.lon = localPosition.longitude_i;
 
-  auto p = packetPool.allocZeroed(0);
+  meshtastic_MeshPacket *p = router->allocForSending();
   if (p == nullptr) {
-    LOG_ERROR("PacketPool vacío. No se puede enviar telemetría.");
+    LOG_ERROR("No se puede enviar el mensaje de asistencia.");
     return;
   }
 
-  p->id = generatePacketId();
-  p->to = 0xFFFFFFFF; // Broadcast
   p->want_ack = false;
-  p->hop_limit = 3;
-  p->channel = 0;
-
-  p->which_payload_variant = meshtastic_MeshPacket_decoded_tag;
-  p->decoded.portnum = meshtastic_PortNum_PRIVATE_APP; // Puerto privado fijo
-
-  pb_ostream_t stream = pb_ostream_from_buffer(
-      p->decoded.payload.bytes, sizeof(p->decoded.payload.bytes));
-  if (!pb_encode(&stream, meshtastic_MonitorAssistTelemetry_fields, &msg)) {
-    LOG_ERROR("Error Nanopb: %s", PB_GET_ERROR(&stream));
+  p->channel = channels.getByName(ALERT_CHANNEL_NAME).index;
+  p->decoded.portnum = meshtastic_PortNum_PRIVATE_APP; 
+ 
+  p->decoded.payload.size = pb_encode_to_bytes(
+      p->decoded.payload.bytes, 
+      sizeof(p->decoded.payload.bytes), 
+      &meshtastic_MonitorAssistTelemetry_msg, 
+      &msg);
+  if (p->decoded.payload.size == 0) {
+    LOG_ERROR("Error Nanopb codificando mensaje de asistencia");
     packetPool.release(p);
     return;
   }
 
-  p->decoded.payload.size = stream.bytes_written;
-
   if (service) {
-    service->sendToMesh(p);
+    service->sendToMesh(p, RX_SRC_LOCAL, true);
   } else {
     packetPool.release(p);
   }
@@ -422,8 +428,28 @@ void MonitorAssistModule::sendAssistTelemetry(uint8_t bpm, uint8_t flags) {
 
 bool MonitorAssistModule::handleReceivedProtobuf(
     const meshtastic_MeshPacket &mp, meshtastic_MonitorAssistTelemetry *msg) {
-  LOG_INFO("Paquete médico recibido de nodo 0x%x. Pulso: %d", mp.from,
-           msg->heart_rate);
+  
+  LOG_INFO("Received Assist message from Node: 0x%x", mp.from);
+  LOG_INFO("   - Heart Rate: %d BPM", msg->heart_rate);
+  
+  bool esCaida = (msg->assist_flags & FLAG_FALL_DETECTED);
+  bool esRiesgoPulso = (msg->assist_flags & FLAG_HR_RISK);
+
+  if (esCaida) {
+      LOG_INFO("   - Reason: Fall detected.");
+      playComboTune();
+      delay(300);
+      playComboTune();
+  }
+  
+  if (esRiesgoPulso) {
+      LOG_INFO("   - Reason: Heart Rate Risk.");
+      for (int i = 0; i < 4; i++) {
+          playLongBeep();
+          delay(150);
+      }
+  }
+
   return true;
 }
 

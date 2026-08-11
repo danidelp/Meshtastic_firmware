@@ -13,9 +13,11 @@
 /* Mensaje de telemetría médica privada para el TFM.
  Transmitido de forma compacta en el puerto privado 256 (PRIVATE_APP). */
 typedef struct _meshtastic_MonitorAssistTelemetry {
+    /* Timestamp de generación del mensaje en segundos (epoch unix) */
+    uint32_t timestamp;
     /* Frecuencia cardíaca en pulsaciones por minuto (BPM) */
     uint8_t heart_rate;
-    /* Latitud multiplicada por 10^7 (Estándar entero de Meshtastic para GPS) */
+    /* Latitud multiplicada por 10^7 */
     int32_t lat;
     /* Longitud multiplicada por 10^7 */
     int32_t lon;
@@ -29,21 +31,23 @@ extern "C" {
 #endif
 
 /* Initializer values for message structs */
-#define meshtastic_MonitorAssistTelemetry_init_default {0, 0, 0, 0}
-#define meshtastic_MonitorAssistTelemetry_init_zero {0, 0, 0, 0}
+#define meshtastic_MonitorAssistTelemetry_init_default {0, 0, 0, 0, 0}
+#define meshtastic_MonitorAssistTelemetry_init_zero {0, 0, 0, 0, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
-#define meshtastic_MonitorAssistTelemetry_heart_rate_tag 1
-#define meshtastic_MonitorAssistTelemetry_lat_tag 2
-#define meshtastic_MonitorAssistTelemetry_lon_tag 3
-#define meshtastic_MonitorAssistTelemetry_assist_flags_tag 4
+#define meshtastic_MonitorAssistTelemetry_timestamp_tag 1
+#define meshtastic_MonitorAssistTelemetry_heart_rate_tag 2
+#define meshtastic_MonitorAssistTelemetry_lat_tag 3
+#define meshtastic_MonitorAssistTelemetry_lon_tag 4
+#define meshtastic_MonitorAssistTelemetry_assist_flags_tag 5
 
 /* Struct field encoding specification for nanopb */
 #define meshtastic_MonitorAssistTelemetry_FIELDLIST(X, a) \
-X(a, STATIC,   SINGULAR, UINT32,   heart_rate,        1) \
-X(a, STATIC,   SINGULAR, INT32,    lat,               2) \
-X(a, STATIC,   SINGULAR, INT32,    lon,               3) \
-X(a, STATIC,   SINGULAR, UINT32,   assist_flags,      4)
+X(a, STATIC,   SINGULAR, UINT32,   timestamp,         1) \
+X(a, STATIC,   SINGULAR, UINT32,   heart_rate,        2) \
+X(a, STATIC,   SINGULAR, INT32,    lat,               3) \
+X(a, STATIC,   SINGULAR, INT32,    lon,               4) \
+X(a, STATIC,   SINGULAR, UINT32,   assist_flags,      5)
 #define meshtastic_MonitorAssistTelemetry_CALLBACK NULL
 #define meshtastic_MonitorAssistTelemetry_DEFAULT NULL
 
@@ -54,7 +58,7 @@ extern const pb_msgdesc_t meshtastic_MonitorAssistTelemetry_msg;
 
 /* Maximum encoded size of messages (where known) */
 #define MESHTASTIC_MESHTASTIC_MONITOR_ASSIST_PB_H_MAX_SIZE meshtastic_MonitorAssistTelemetry_size
-#define meshtastic_MonitorAssistTelemetry_size   28
+#define meshtastic_MonitorAssistTelemetry_size   34
 
 #ifdef __cplusplus
 } /* extern "C" */

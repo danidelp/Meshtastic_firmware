@@ -23,9 +23,13 @@ void QMA6100PSetInterrupt()
 // === CONFIGURACIÓN DE SENSIBILIDAD PARA EL USUARIO FINAL ===
 // En modo ±32G (el usado por defecto), cada unidad Hexadecimal equivale a ~0.0625 G.
 //
-// Tabla de valores típicos (chuleta):
-// 0x08 = 0.5 G (Hipersensible, detecta casi cualquier roce)
-// 0x10 = 1.0 G (Sensible, detecta a una persona arrastrándose o moviendo los brazos)
+// Tabla de valores para la sensibilidad de la IMU:
+// 0x01 = 0.0625 G (Extremadamente hipersensible)
+// 0x02 = 0.125 G (Extremadamente hipersensible)
+// 0x04 = 0.25 G (Extremadamente sensible, detecta una caída desde 1mt de altura)
+// 0x08 = 0.5 G (Hipersensible)
+// 0x0C = 0.75 G (Sensible, pero sigue sin detectar una caida desde 1mt de altura)
+// 0x10 = 1.0 G (Sensible)
 // 0x18 = 1.5 G (Medio)
 // 0x20 = 2.0 G (Impacto medio-fuerte)
 // 0x28 = 2.5 G (Caída notable)
@@ -33,8 +37,8 @@ void QMA6100PSetInterrupt()
 // 0x40 = 4.0 G (Golpe extremo)
 //
 // Ajusta estos umbrales a tu gusto:
-#define UMBRAL_CAIDA_GRAVE           0x0C // 0.75G (VALOR DE PRUEBAS) -> Fuerza necesaria para que el sistema considere que te has caído
-#define UMBRAL_MOVIMIENTO_POST_CAIDA 0x03 // 0x10 = 1.0G, 0x03 = 0.5G -> Fuerza necesaria para considerar que te estás moviendo por el suelo
+#define UMBRAL_CAIDA_GRAVE           0x04 // 0.25G (HIPERSENSIBLE) -> Fuerza necesaria para que el sistema considere que te has caído
+#define UMBRAL_MOVIMIENTO_POST_CAIDA 0x02 // 0.125G -> Fuerza necesaria para considerar que te estás moviendo por el suelo
 
 // Ajustes de tiempos (en milisegundos):
 #define TIMEOUT_INMOVILIDAD_MS  10000 // Si estás quieto 10s tras la caída, salta la emergencia
@@ -44,6 +48,7 @@ void QMA6100PSetInterrupt()
 void QMA6100PSensor::resetFallState() {
     LOG_INFO("QMA6100P: Resetting state...");
     fall_detected = false;
+    userImmobile = false;
     last_impact_time = 0;
     first_impact_time = 0;
     
@@ -249,8 +254,8 @@ void QMA6100PSensor::detectFall()
                 
                 // Subimos la sensibilidad para el suelo.
                 sensor->writeRegisterByte(0x2E, UMBRAL_MOVIMIENTO_POST_CAIDA);
-                // Filtro de duración del movimiento a 4 muestras seguidas (0x03).
-                sensor->writeRegisterByte(0x2C, 0x03);
+                // Filtro de duración del movimiento a 2 muestras seguidas (0x01) para que sea casi instantáneo.
+                sensor->writeRegisterByte(0x2C, 0x01);
             } else {
                 // MOVIMIENTO DESPUÉS DE LA CAÍDA
                 // La persona se está moviendo (intentando levantarse). Reseteamos el contador de 15s.

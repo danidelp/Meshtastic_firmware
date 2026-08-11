@@ -22,11 +22,11 @@ class MonitorAssistModule : public ProtobufModule<meshtastic_MonitorAssistTeleme
 public:
 
 private:
-    // --- NUEVAS CONSTANTES DE TIEMPO DE TU ESTRATEGIA ---
-    static constexpr uint32_t INTERVALO_NORMAL_MS = MINS_TO_MILIS(30);            // Envio regular cada 30 minutos 
-    static constexpr uint32_t INTERVALO_ALERTA_INMEDIATA_MS = SECS_TO_MILIS(30);  // Alerta inmediata cada 30 segundos
-    static constexpr uint32_t INTERVALO_ALERTA_SECUNDARIA_MS = MINS_TO_MILIS(2);  // Alerta secundaria cada 2 minutos 
-    static constexpr uint32_t INTERVALO_ALERTA_SOSTENIDA_MS = MINS_TO_MILIS(10);  // Alerta sostenida cada 10 minutos 
+    // --- CONSTANTES DE TIEMPO PARA EL ENVIO PERIODICO DE MENSAJES ---
+    static constexpr uint32_t INTERVALO_ENVIO_NORMAL_MS = MINS_TO_MILIS(15);            // Envio regular cada 15 minutos 
+    static constexpr uint32_t INTERVALO_ENVIO_ALERTA_INMEDIATA_MS = SECS_TO_MILIS(20);  // Alerta inmediata cada 20 segundos
+    static constexpr uint32_t INTERVALO_ENVIO_ALERTA_SECUNDARIA_MS = MINS_TO_MILIS(2);  // Alerta secundaria cada 2 minutos 
+    static constexpr uint32_t INTERVALO_ENVIO_ALERTA_SOSTENIDA_MS = MINS_TO_MILIS(10);  // Alerta sostenida cada 10 minutos 
 
     static constexpr uint8_t FLAG_FALL_DETECTED = 0x01;
     static constexpr uint8_t FLAG_HR_RISK = 0x02;

@@ -58,7 +58,7 @@ int32_t HRBandSensor::runOnce() {
     }
 
     // Process the instant HR values discarting zero measures
-    // The band sends zeroes when first connected until the pulse is stabilized
+    // The band sends zeroes when first connected and when no pulse is detected 
     uint32_t instantAccumValues = 0;
     uint8_t zeroValues = 0;
     uint8_t validValues = 0;
@@ -156,7 +156,6 @@ static void scan_callback(ble_gap_evt_adv_report_t* report) {
     }
     }
     
-    // Si no es un HR, o no es TU banda, la ignoramos y seguimos buscando sin gastar batería
     Bluefruit.Scanner.resume();
 }
 
